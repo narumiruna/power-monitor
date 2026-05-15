@@ -13,6 +13,7 @@ from powermonitor.config_loader import _load_toml_file
 from powermonitor.config_loader import _validate_config_structure
 from powermonitor.config_loader import _warn_unknown_keys
 from powermonitor.config_loader import load_config
+from powermonitor.config_loader import validate_config_file
 
 
 class TestConvertToType:
@@ -251,7 +252,12 @@ class TestValidateConfigStructure:
     def test_valid_config_no_warnings(self):
         """Test that valid config structure doesn't trigger warnings."""
         user_config = {
-            "tui": {"interval": 1.0, "stats_limit": 100, "chart_limit": 60},
+            "tui": {
+                "interval": 1.0,
+                "stats_limit": 100,
+                "chart_limit": 60,
+                "layout": {"summary_mode": "side_by_side", "live_weight": 1},
+            },
             "database": {"path": "~/test.db"},
             "cli": {"default_history_limit": 20, "default_export_limit": 1000},
             "logging": {"level": "INFO"},
@@ -317,6 +323,38 @@ class TestValidateConfigStructure:
         assert "Unknown key 'typo_key'" in log_text
         assert "[tui]" in log_text
 
+    def test_unknown_key_in_layout_section_warning(self):
+        """Test that unknown key in [tui.layout] triggers warning."""
+        user_config = {"tui": {"layout": {"summary_mode": "side_by_side", "typo_key": "value"}}}
+        config_path = Path("/test/config.toml")
+
+        messages = []
+        handler_id = logger.add(messages.append, format="{message}")
+        try:
+            _validate_config_structure(user_config, config_path)
+        finally:
+            logger.remove(handler_id)
+
+        log_text = "\n".join(messages)
+        assert "Unknown key 'typo_key'" in log_text
+        assert "[tui.layout]" in log_text
+
+    def test_non_dict_layout_section_warning(self):
+        """Test that non-dict [tui.layout] triggers warning."""
+        user_config = {"tui": {"layout": "not_a_dict"}}
+        config_path = Path("/test/config.toml")
+
+        messages = []
+        handler_id = logger.add(messages.append, format="{message}")
+        try:
+            _validate_config_structure(user_config, config_path)
+        finally:
+            logger.remove(handler_id)
+
+        log_text = "\n".join(messages)
+        assert "[tui.layout]" in log_text
+        assert "must be a table" in log_text
+
 
 class TestLoadConfig:
     """Integration tests for load_config function."""
@@ -340,6 +378,16 @@ interval = 2.5
 stats_limit = 200
 chart_limit = 120
 
+[tui.layout]
+summary_mode = "stacked"
+live_weight = 2
+stats_weight = 3
+live_height = 7
+stats_height = 9
+summary_height = 11
+chart_height = 15
+panel_gap = 0
+
 [database]
 path = "~/custom.db"
 
@@ -356,6 +404,14 @@ level = "DEBUG"
                 assert config.collection_interval == 2.5
                 assert config.stats_history_limit == 200
                 assert config.chart_history_limit == 120
+                assert config.layout.summary_mode == "stacked"
+                assert config.layout.live_weight == 2
+                assert config.layout.stats_weight == 3
+                assert config.layout.live_height == 7
+                assert config.layout.stats_height == 9
+                assert config.layout.summary_height == 11
+                assert config.layout.chart_height == 15
+                assert config.layout.panel_gap == 0
                 assert config.log_level == "DEBUG"
         finally:
             temp_path.unlink()
@@ -438,6 +494,52 @@ level = "debug"
         finally:
             temp_path.unlink()
 
+    def test_load_config_layout_field_level_fallback(self):
+        """Test that invalid layout fields fall back while preserving valid layout fields."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+            f.write("""
+[tui.layout]
+summary_mode = "stacked"
+live_weight = "invalid"
+stats_weight = 2
+live_height = 0
+chart_height = 16
+panel_gap = -1
+""")
+            temp_path = Path(f.name)
+
+        try:
+            with patch("powermonitor.config_loader.get_config_path") as mock_path:
+                mock_path.return_value = temp_path
+                config = load_config()
+
+                assert config.layout.summary_mode == "stacked"
+                assert config.layout.live_weight == 1
+                assert config.layout.stats_weight == 2
+                assert config.layout.live_height == 8
+                assert config.layout.chart_height == 16
+                assert config.layout.panel_gap == 1
+        finally:
+            temp_path.unlink()
+
+    def test_load_config_invalid_layout_mode_fallback(self):
+        """Test that invalid layout mode falls back to default."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+            f.write("""
+[tui.layout]
+summary_mode = "grid"
+""")
+            temp_path = Path(f.name)
+
+        try:
+            with patch("powermonitor.config_loader.get_config_path") as mock_path:
+                mock_path.return_value = temp_path
+                config = load_config()
+
+                assert config.layout.summary_mode == "side_by_side"
+        finally:
+            temp_path.unlink()
+
     def test_load_config_path_tilde_expansion(self):
         """Test that tilde in database path is expanded."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
@@ -455,5 +557,73 @@ path = "~/test.db"
                 # Tilde should be expanded
                 assert "~" not in str(config.database_path)
                 assert str(config.database_path).startswith(str(Path.home()))
+        finally:
+            temp_path.unlink()
+
+
+class TestValidateConfigFile:
+    """Tests for strict config file validation."""
+
+    def test_validate_config_file_layout_valid(self):
+        """Test that valid layout settings pass strict validation."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+            f.write("""
+[tui.layout]
+summary_mode = "stacked"
+live_weight = 2
+stats_weight = 3
+live_height = 7
+stats_height = 9
+summary_height = 11
+chart_height = 15
+panel_gap = 0
+""")
+            temp_path = Path(f.name)
+
+        try:
+            result = validate_config_file(temp_path)
+
+            assert result.is_valid
+            assert result.errors == []
+        finally:
+            temp_path.unlink()
+
+    def test_validate_config_file_layout_invalid_values(self):
+        """Test that invalid layout values fail strict validation."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+            f.write("""
+[tui.layout]
+summary_mode = "grid"
+live_weight = 0
+panel_gap = -1
+""")
+            temp_path = Path(f.name)
+
+        try:
+            result = validate_config_file(temp_path)
+
+            assert not result.is_valid
+            error_text = "\n".join(result.errors)
+            assert "summary_mode must be one of" in error_text
+            assert "live_weight must be positive" in error_text
+            assert "panel_gap must be zero or positive" in error_text
+        finally:
+            temp_path.unlink()
+
+    def test_validate_config_file_layout_unknown_key(self):
+        """Test that unknown layout keys fail strict validation."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
+            f.write("""
+[tui.layout]
+summary_mode = "side_by_side"
+unknown_key = true
+""")
+            temp_path = Path(f.name)
+
+        try:
+            result = validate_config_file(temp_path)
+
+            assert not result.is_valid
+            assert "Unknown key 'unknown_key' in [tui.layout]" in "\n".join(result.errors)
         finally:
             temp_path.unlink()

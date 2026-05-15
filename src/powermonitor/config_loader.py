@@ -7,10 +7,22 @@ from typing import Any
 
 from loguru import logger
 
+from .config import VALID_SUMMARY_MODES
 from .config import PowerMonitorConfig
+from .config import TUILayoutConfig
 
 CONFIG_SECTION_KEYS = {
-    "tui": {"interval", "stats_limit", "chart_limit"},
+    "tui": {"interval", "stats_limit", "chart_limit", "layout"},
+    "tui.layout": {
+        "summary_mode",
+        "live_weight",
+        "stats_weight",
+        "live_height",
+        "stats_height",
+        "summary_height",
+        "chart_height",
+        "panel_gap",
+    },
     "database": {"path"},
     "cli": {"default_history_limit", "default_export_limit"},
     "logging": {"level"},
@@ -53,6 +65,21 @@ interval = {config.collection_interval}
 stats_limit = {config.stats_history_limit}
 # Number of readings to display in chart
 chart_limit = {config.chart_history_limit}
+
+[tui.layout]
+# Layout mode for live data and statistics: side_by_side or stacked
+summary_mode = "{config.layout.summary_mode}"
+# Relative widths when summary_mode = "side_by_side"
+live_weight = {config.layout.live_weight}
+stats_weight = {config.layout.stats_weight}
+# Panel heights when summary_mode = "stacked"
+live_height = {config.layout.live_height}
+stats_height = {config.layout.stats_height}
+# Shared summary row and chart sizing
+summary_height = {config.layout.summary_height}
+chart_height = {config.layout.chart_height}
+# Gap between panels, in terminal cells
+panel_gap = {config.layout.panel_gap}
 
 [database]
 # Database file location
@@ -126,10 +153,10 @@ def _warn_unknown_keys(user_config: dict[str, Any], section: str, valid_keys: se
         valid_keys: Set of valid key names for this section
         config_path: Path to config file for error messages
     """
-    if section not in user_config:
+    section_data = _get_nested_value(user_config, section, None)
+    if section_data is None:
         return
 
-    section_data = user_config[section]
     if not isinstance(section_data, dict):
         return
 
@@ -141,15 +168,15 @@ def _warn_unknown_keys(user_config: dict[str, Any], section: str, valid_keys: se
             )
 
 
-def _find_structure_issues(user_config: dict[str, Any], config_path: Path) -> list[str]:
-    """Find unknown sections, unknown keys, and malformed section tables."""
+def _find_unknown_key_issues(user_config: dict[str, Any], config_path: Path) -> list[str]:
+    """Find unknown keys in known config sections."""
     issues: list[str] = []
 
     for section, valid_keys in CONFIG_SECTION_KEYS.items():
-        if section not in user_config:
+        section_data = _get_nested_value(user_config, section, None)
+        if section_data is None:
             continue
 
-        section_data = user_config[section]
         if not isinstance(section_data, dict):
             continue
 
@@ -160,19 +187,128 @@ def _find_structure_issues(user_config: dict[str, Any], config_path: Path) -> li
                     f"(valid keys: {', '.join(sorted(valid_keys))})"
                 )
 
-    valid_sections = set(CONFIG_SECTION_KEYS)
-    for section in user_config:
-        if section not in valid_sections:
-            issues.append(f"Unknown config section [{section}] in {config_path} - ignoring")
+    return issues
+
+
+def _find_top_level_section_issues(user_config: dict[str, Any], config_path: Path) -> list[str]:
+    """Find unknown top-level config sections."""
+    issues: list[str] = []
 
     for section in user_config:
-        if section in valid_sections and not isinstance(user_config[section], dict):
+        if section not in {"tui", "database", "cli", "logging"}:
+            issues.append(f"Unknown config section [{section}] in {config_path} - ignoring")
+
+    return issues
+
+
+def _find_malformed_section_issues(user_config: dict[str, Any], config_path: Path) -> list[str]:
+    """Find known sections that are not TOML tables."""
+    issues: list[str] = []
+
+    for section in {"tui", "database", "cli", "logging"}:
+        if section in user_config and not isinstance(user_config[section], dict):
             issues.append(
                 f"Config section [{section}] in {config_path} must be a table, "
                 f"but got {type(user_config[section]).__name__} - ignoring section"
             )
 
+    tui_layout = _get_nested_value(user_config, "tui.layout", None)
+    if tui_layout is not None and not isinstance(tui_layout, dict):
+        issues.append(
+            f"Config section [tui.layout] in {config_path} must be a table, "
+            f"but got {type(tui_layout).__name__} - ignoring section"
+        )
+
     return issues
+
+
+def _find_structure_issues(user_config: dict[str, Any], config_path: Path) -> list[str]:
+    """Find unknown sections, unknown keys, and malformed section tables."""
+    return [
+        *_find_unknown_key_issues(user_config, config_path),
+        *_find_top_level_section_issues(user_config, config_path),
+        *_find_malformed_section_issues(user_config, config_path),
+    ]
+
+
+def _layout_error_message(field_name: str, value: Any) -> str | None:
+    """Return a validation error for a layout value, or None when valid."""
+    if field_name == "summary_mode":
+        if not isinstance(value, str):
+            return f"Invalid 'tui.layout.summary_mode' value {value!r}; expected a string"
+        if value not in VALID_SUMMARY_MODES:
+            valid_modes = ", ".join(sorted(VALID_SUMMARY_MODES))
+            return f"summary_mode must be one of {valid_modes}, got {value}"
+        return None
+
+    if field_name == "panel_gap":
+        if not isinstance(value, int) or value < 0:
+            return f"panel_gap must be zero or positive, got {value}"
+        return None
+
+    if not isinstance(value, int) or value <= 0:
+        return f"{field_name} must be positive, got {value}"
+    return None
+
+
+def _build_layout_config(
+    user_config: dict[str, Any],
+    default_layout: TUILayoutConfig,
+    errors: list[str] | None = None,
+) -> TUILayoutConfig:
+    """Build TUILayoutConfig with per-field fallback, optionally collecting strict errors."""
+    layout_values: dict[str, Any] = {
+        "summary_mode": default_layout.summary_mode,
+        "live_weight": default_layout.live_weight,
+        "stats_weight": default_layout.stats_weight,
+        "live_height": default_layout.live_height,
+        "stats_height": default_layout.stats_height,
+        "summary_height": default_layout.summary_height,
+        "chart_height": default_layout.chart_height,
+        "panel_gap": default_layout.panel_gap,
+    }
+
+    def report(message: str) -> None:
+        if errors is None:
+            logger.warning(f"{message} - using default layout value")
+        else:
+            errors.append(message)
+
+    summary_mode_raw = _get_nested_value(user_config, "tui.layout.summary_mode", default_layout.summary_mode)
+    if summary_mode_raw is not default_layout.summary_mode:
+        message = _layout_error_message("summary_mode", summary_mode_raw)
+        if message is None:
+            layout_values["summary_mode"] = summary_mode_raw
+        else:
+            report(message)
+
+    numeric_fields = (
+        "live_weight",
+        "stats_weight",
+        "live_height",
+        "stats_height",
+        "summary_height",
+        "chart_height",
+        "panel_gap",
+    )
+    for field_name in numeric_fields:
+        default_value = getattr(default_layout, field_name)
+        raw_value = _get_nested_value(user_config, f"tui.layout.{field_name}", default_value)
+        if raw_value is default_value:
+            continue
+        try:
+            converted_value = _convert_to_type(raw_value, int, f"tui.layout.{field_name}")
+        except ValueError as e:
+            report(str(e))
+            continue
+
+        message = _layout_error_message(field_name, converted_value)
+        if message is None:
+            layout_values[field_name] = converted_value
+        else:
+            report(message)
+
+    return TUILayoutConfig(**layout_values)
 
 
 def _load_toml_file(config_path: Path) -> dict[str, Any] | None:
@@ -255,6 +391,7 @@ def validate_config_file(config_path: Path | None = None) -> ConfigValidationRes
     chart_history_limit = convert_value("tui.chart_limit", int, default_config.chart_history_limit)
     default_history_limit = convert_value("cli.default_history_limit", int, default_config.default_history_limit)
     default_export_limit = convert_value("cli.default_export_limit", int, default_config.default_export_limit)
+    layout = _build_layout_config(user_config, default_config.layout, errors)
 
     database_path_raw = _get_nested_value(user_config, "database.path", default_config.database_path)
     if not isinstance(database_path_raw, (str, Path)):
@@ -279,6 +416,7 @@ def validate_config_file(config_path: Path | None = None) -> ConfigValidationRes
             default_history_limit=default_history_limit,
             default_export_limit=default_export_limit,
             log_level=log_level,
+            layout=layout,
         )
     except ValueError as e:
         errors.append(str(e))
@@ -342,6 +480,7 @@ def load_config() -> PowerMonitorConfig:
     chart_history_limit = safe_convert("tui.chart_limit", int, default_config.chart_history_limit)
     default_history_limit = safe_convert("cli.default_history_limit", int, default_config.default_history_limit)
     default_export_limit = safe_convert("cli.default_export_limit", int, default_config.default_export_limit)
+    layout = _build_layout_config(user_config, default_config.layout)
 
     # Database path (ensure it's a string or Path; expanduser happens in __post_init__)
     database_path_raw = _get_nested_value(user_config, "database.path", default_config.database_path)
@@ -375,6 +514,7 @@ def load_config() -> PowerMonitorConfig:
             default_history_limit=default_history_limit,
             default_export_limit=default_export_limit,
             log_level=log_level,
+            layout=layout,
         )
     except ValueError as e:
         # This should rarely happen now (only if __post_init__ validation fails)

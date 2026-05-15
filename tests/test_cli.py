@@ -116,6 +116,10 @@ def test_config_show_displays_effective_config(temp_config, temp_db):
     assert "100" in output
     assert "Chart history limit" in output
     assert "60" in output
+    assert "Layout mode" in output
+    assert "side_by_side" in output
+    assert "Chart height" in output
+    assert "20" in output
     assert "Log level" in output
     assert "INFO" in output
 
@@ -134,6 +138,8 @@ def test_config_init_creates_default_config(monkeypatch, tmp_path):
     assert "# powermonitor configuration file" in content
     parsed = tomllib.loads(content)
     assert parsed["tui"]["interval"] == 1.0
+    assert parsed["tui"]["layout"]["summary_mode"] == "side_by_side"
+    assert parsed["tui"]["layout"]["chart_height"] == 20
     assert parsed["database"]["path"]
     assert parsed["logging"]["level"] == "INFO"
 
@@ -207,6 +213,32 @@ def test_config_validate_unknown_key(monkeypatch, tmp_path):
 
     assert result.exit_code == 1
     assert "Unknown key 'tyop'" in strip_ansi(result.stdout)
+
+
+def test_config_validate_invalid_layout(monkeypatch, tmp_path):
+    """Test config validate reports invalid layout values."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[tui.layout]\nsummary_mode = "grid"\nlive_weight = 0\n', encoding="utf-8")
+    patch_config_path(monkeypatch, config_path)
+
+    result = runner.invoke(app, ["config", "validate"])
+
+    assert result.exit_code == 1
+    output = strip_ansi(result.stdout)
+    assert "summary_mode must be one of" in output
+    assert "live_weight must be positive" in output
+
+
+def test_config_validate_unknown_layout_key(monkeypatch, tmp_path):
+    """Test config validate reports unknown keys in layout section."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text("[tui.layout]\nunknown_key = true\n", encoding="utf-8")
+    patch_config_path(monkeypatch, config_path)
+
+    result = runner.invoke(app, ["config", "validate"])
+
+    assert result.exit_code == 1
+    assert "Unknown key 'unknown_key' in [tui.layout]" in strip_ansi(result.stdout)
 
 
 def test_export_csv(database, temp_config, tmp_path):

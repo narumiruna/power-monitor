@@ -92,6 +92,16 @@ interval = 1.0           # Data collection interval in seconds
 stats_limit = 100        # Number of readings for statistics
 chart_limit = 60         # Number of readings to display in chart
 
+[tui.layout]
+summary_mode = "side_by_side"  # side_by_side or stacked
+live_weight = 1                # Relative live panel width in side_by_side mode
+stats_weight = 1               # Relative stats panel width in side_by_side mode
+live_height = 8                # Live panel height in stacked mode
+stats_height = 10              # Stats panel height in stacked mode
+summary_height = 10            # Summary row height in side_by_side mode
+chart_height = 20              # Chart panel height
+panel_gap = 1                  # Gap between panels
+
 [database]
 path = "~/.powermonitor/powermonitor.db"  # Database file location
 
@@ -133,6 +143,28 @@ interval = 2.0
 ```
 
 Then run: `powermonitor` (uses config) or `powermonitor --interval 0.5` (overrides config)
+
+**Example**: Move live power and statistics back to separate rows:
+
+```toml
+[tui.layout]
+summary_mode = "stacked"
+live_height = 8
+stats_height = 10
+chart_height = 20
+```
+
+**Example**: Keep live power and statistics side by side, but give statistics more width:
+
+```toml
+[tui.layout]
+summary_mode = "side_by_side"
+live_weight = 2
+stats_weight = 3
+summary_height = 10
+chart_height = 18
+panel_gap = 1
+```
 
 ### CLI Commands
 

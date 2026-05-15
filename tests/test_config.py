@@ -1,10 +1,13 @@
 """Tests for PowerMonitorConfig."""
 
 import warnings
+from typing import Any
+from typing import cast
 
 import pytest
 
 from powermonitor.config import PowerMonitorConfig
+from powermonitor.config import TUILayoutConfig
 
 
 def test_config_default_values():
@@ -14,6 +17,7 @@ def test_config_default_values():
     assert config.collection_interval == 1.0
     assert config.stats_history_limit == 100
     assert config.chart_history_limit == 60
+    assert config.layout == TUILayoutConfig()
 
 
 def test_config_custom_values():
@@ -27,6 +31,79 @@ def test_config_custom_values():
     assert config.collection_interval == 2.5
     assert config.stats_history_limit == 200
     assert config.chart_history_limit == 120
+
+
+def test_layout_config_default_values():
+    """Test TUILayoutConfig with default values."""
+    layout = TUILayoutConfig()
+
+    assert layout.summary_mode == "side_by_side"
+    assert layout.live_weight == 1
+    assert layout.stats_weight == 1
+    assert layout.live_height == 8
+    assert layout.stats_height == 10
+    assert layout.summary_height == 10
+    assert layout.chart_height == 20
+    assert layout.panel_gap == 1
+
+
+def test_layout_config_custom_values():
+    """Test TUILayoutConfig with custom values."""
+    layout = TUILayoutConfig(
+        summary_mode="stacked",
+        live_weight=2,
+        stats_weight=3,
+        live_height=7,
+        stats_height=9,
+        summary_height=11,
+        chart_height=15,
+        panel_gap=0,
+    )
+
+    assert layout.summary_mode == "stacked"
+    assert layout.live_weight == 2
+    assert layout.stats_weight == 3
+    assert layout.live_height == 7
+    assert layout.stats_height == 9
+    assert layout.summary_height == 11
+    assert layout.chart_height == 15
+    assert layout.panel_gap == 0
+
+
+def test_layout_config_invalid_summary_mode():
+    """Test that invalid summary_mode raises ValueError."""
+    with pytest.raises(ValueError, match="summary_mode must be one of"):
+        TUILayoutConfig(summary_mode=cast(Any, "grid"))
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("live_weight", 0),
+        ("stats_weight", -1),
+        ("live_height", 0),
+        ("stats_height", -1),
+        ("summary_height", 0),
+        ("chart_height", -1),
+    ],
+)
+def test_layout_config_positive_fields(field_name, value):
+    """Test that layout size and weight fields must be positive."""
+    with pytest.raises(ValueError, match=f"{field_name} must be positive"):
+        TUILayoutConfig(**{field_name: value})
+
+
+def test_layout_config_panel_gap_allows_zero():
+    """Test that panel_gap may be zero."""
+    layout = TUILayoutConfig(panel_gap=0)
+
+    assert layout.panel_gap == 0
+
+
+def test_layout_config_negative_panel_gap():
+    """Test that negative panel_gap raises ValueError."""
+    with pytest.raises(ValueError, match="panel_gap must be zero or positive"):
+        TUILayoutConfig(panel_gap=-1)
 
 
 def test_config_negative_collection_interval():
