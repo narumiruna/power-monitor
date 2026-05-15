@@ -7,6 +7,7 @@ from datetime import datetime
 import pytest
 
 from powermonitor.config import PowerMonitorConfig
+from powermonitor.config import TUILayoutConfig
 from powermonitor.models import PowerReading
 from powermonitor.tui.app import PowerMonitorApp
 from powermonitor.tui.widgets import LiveDataPanel
@@ -101,10 +102,74 @@ async def test_app_launches():
     app = PowerMonitorApp(config=config)
 
     async with app.run_test():
-        # App should have header, footer, and 3 panels
+        # App should have header, footer, summary row, and 3 panels
+        assert app.query_one("#summary-row") is not None
         assert app.query_one("#live-data") is not None
         assert app.query_one("#stats") is not None
         assert app.query_one("#chart") is not None
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="PowerMonitorApp requires macOS collector",
+)
+async def test_app_side_by_side_layout_styles():
+    """Test side-by-side layout assigns configured row sizing."""
+    config = PowerMonitorConfig(
+        collection_interval=1.0,
+        layout=TUILayoutConfig(
+            summary_mode="side_by_side",
+            live_weight=2,
+            stats_weight=3,
+            summary_height=11,
+            chart_height=16,
+            panel_gap=2,
+        ),
+    )
+    app = PowerMonitorApp(config=config)
+
+    async with app.run_test():
+        summary_row = app.query_one("#summary-row")
+        live_panel = app.query_one("#live-data")
+        stats_panel = app.query_one("#stats")
+        chart = app.query_one("#chart")
+
+        assert str(summary_row.styles.height) == "11"
+        assert str(live_panel.styles.width) == "2fr"
+        assert str(stats_panel.styles.width) == "3fr"
+        assert str(chart.styles.height) == "16"
+        assert summary_row.styles.margin.top == 2
+        assert live_panel.styles.margin.right == 2
+
+
+@pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="PowerMonitorApp requires macOS collector",
+)
+async def test_app_stacked_layout_styles():
+    """Test stacked layout omits summary row and assigns configured heights."""
+    config = PowerMonitorConfig(
+        collection_interval=1.0,
+        layout=TUILayoutConfig(
+            summary_mode="stacked",
+            live_height=7,
+            stats_height=9,
+            chart_height=15,
+            panel_gap=2,
+        ),
+    )
+    app = PowerMonitorApp(config=config)
+
+    async with app.run_test():
+        live_panel = app.query_one("#live-data")
+        stats_panel = app.query_one("#stats")
+        chart = app.query_one("#chart")
+
+        assert len(app.query("#summary-row")) == 0
+        assert str(live_panel.styles.height) == "7"
+        assert str(stats_panel.styles.height) == "9"
+        assert str(chart.styles.height) == "15"
+        assert live_panel.styles.margin.top == 2
 
 
 @pytest.mark.skipif(

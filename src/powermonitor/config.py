@@ -2,7 +2,12 @@
 
 import warnings
 from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
+from typing import Literal
+
+SummaryMode = Literal["side_by_side", "stacked"]
+VALID_SUMMARY_MODES: set[SummaryMode] = {"side_by_side", "stacked"}
 
 
 def _get_default_db_path() -> Path:
@@ -14,6 +19,47 @@ def _get_default_db_path() -> Path:
         Path to default database location
     """
     return Path.home() / ".powermonitor" / "powermonitor.db"
+
+
+def _validate_positive(value: int | float, field_name: str) -> None:
+    """Validate that a numeric config field is positive."""
+    if value <= 0:
+        raise ValueError(f"{field_name} must be positive, got {value}")
+
+
+@dataclass(slots=True)
+class TUILayoutConfig:
+    """Configuration for the Textual TUI layout."""
+
+    summary_mode: SummaryMode = "side_by_side"
+    live_weight: int = 1
+    stats_weight: int = 1
+    live_height: int = 8
+    stats_height: int = 10
+    summary_height: int = 10
+    chart_height: int = 20
+    panel_gap: int = 1
+
+    def __post_init__(self) -> None:
+        """Validate layout-specific configuration values."""
+        if self.summary_mode not in VALID_SUMMARY_MODES:
+            valid_modes = ", ".join(sorted(VALID_SUMMARY_MODES))
+            raise ValueError(f"summary_mode must be one of {valid_modes}, got {self.summary_mode}")
+
+        positive_fields = {
+            "live_weight": self.live_weight,
+            "stats_weight": self.stats_weight,
+            "live_height": self.live_height,
+            "stats_height": self.stats_height,
+            "summary_height": self.summary_height,
+            "chart_height": self.chart_height,
+        }
+        for field_name, value in positive_fields.items():
+            if not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{field_name} must be positive, got {value}")
+
+        if not isinstance(self.panel_gap, int) or self.panel_gap < 0:
+            raise ValueError(f"panel_gap must be zero or positive, got {self.panel_gap}")
 
 
 @dataclass(slots=True)
@@ -28,6 +74,7 @@ class PowerMonitorConfig:
         default_history_limit: Default number of readings for history command (must be > 0)
         default_export_limit: Default number of readings for export command (must be > 0)
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR) - stored in uppercase
+        layout: Textual TUI layout settings
 
     Notes:
         - log_level is automatically normalized to uppercase in __post_init__
@@ -42,6 +89,7 @@ class PowerMonitorConfig:
     default_history_limit: int = 20  # default for history command
     default_export_limit: int = 1000  # default for export command
     log_level: str = "INFO"  # logging level (normalized to uppercase)
+    layout: TUILayoutConfig = field(default_factory=TUILayoutConfig)
 
     def __post_init__(self) -> None:
         """Validate and normalize configuration values after initialization.
@@ -68,21 +116,14 @@ class PowerMonitorConfig:
             raise ValueError(f"log_level must be a string, got {type(self.log_level).__name__}")
         object.__setattr__(self, "log_level", self.log_level.upper())
 
-        # Validate numeric parameters
-        if self.collection_interval <= 0:
-            raise ValueError(f"collection_interval must be positive, got {self.collection_interval}")
+        _validate_positive(self.collection_interval, "collection_interval")
+        _validate_positive(self.stats_history_limit, "stats_history_limit")
+        _validate_positive(self.chart_history_limit, "chart_history_limit")
+        _validate_positive(self.default_history_limit, "default_history_limit")
+        _validate_positive(self.default_export_limit, "default_export_limit")
 
-        if self.stats_history_limit <= 0:
-            raise ValueError(f"stats_history_limit must be positive, got {self.stats_history_limit}")
-
-        if self.chart_history_limit <= 0:
-            raise ValueError(f"chart_history_limit must be positive, got {self.chart_history_limit}")
-
-        if self.default_history_limit <= 0:
-            raise ValueError(f"default_history_limit must be positive, got {self.default_history_limit}")
-
-        if self.default_export_limit <= 0:
-            raise ValueError(f"default_export_limit must be positive, got {self.default_export_limit}")
+        if not isinstance(self.layout, TUILayoutConfig):
+            raise ValueError(f"layout must be a TUILayoutConfig, got {type(self.layout).__name__}")
 
         # Validate log level
         valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR"}

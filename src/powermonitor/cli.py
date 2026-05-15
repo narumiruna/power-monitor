@@ -46,6 +46,14 @@ def config_show() -> None:
     table.add_row("Collection interval", f"{config.collection_interval:g} seconds")
     table.add_row("Stats history limit", str(config.stats_history_limit))
     table.add_row("Chart history limit", str(config.chart_history_limit))
+    table.add_row("Layout mode", config.layout.summary_mode)
+    table.add_row("Live panel weight", str(config.layout.live_weight))
+    table.add_row("Stats panel weight", str(config.layout.stats_weight))
+    table.add_row("Live panel height", str(config.layout.live_height))
+    table.add_row("Stats panel height", str(config.layout.stats_height))
+    table.add_row("Summary row height", str(config.layout.summary_height))
+    table.add_row("Chart height", str(config.layout.chart_height))
+    table.add_row("Panel gap", str(config.layout.panel_gap))
     table.add_row("Default history limit", str(config.default_history_limit))
     table.add_row("Default export limit", str(config.default_export_limit))
     table.add_row("Log level", config.log_level)
@@ -141,6 +149,7 @@ def main(
             default_history_limit=base_config.default_history_limit,
             default_export_limit=base_config.default_export_limit,
             log_level="DEBUG" if debug else base_config.log_level,
+            layout=base_config.layout,
         )
     except ValueError as e:
         logger.error(f"Invalid configuration: {e}")

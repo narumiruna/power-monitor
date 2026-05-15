@@ -6,6 +6,7 @@ import contextlib
 from textual.app import App
 from textual.app import ComposeResult
 from textual.binding import Binding
+from textual.containers import Horizontal
 from textual.containers import Vertical
 from textual.widgets import Footer
 from textual.widgets import Header
@@ -35,24 +36,18 @@ class PowerMonitorApp(App):
     }
 
     #live-data {
-        height: 8;
         border: solid green;
         padding: 1;
-        margin: 1;
     }
 
     #stats {
-        height: 10;
         border: solid cyan;
         padding: 1;
-        margin: 1;
     }
 
     #chart {
-        height: 20;
         border: solid blue;
         padding: 1;
-        margin: 1;
     }
     """
 
@@ -75,17 +70,37 @@ class PowerMonitorApp(App):
     def compose(self) -> ComposeResult:
         """Compose the TUI layout.
 
-        3-panel layout:
+        Top row:
         - LiveDataPanel: Real-time power data
         - StatsPanel: Historical statistics
+
+        Bottom row:
         - ChartWidget: Power over time chart
         """
+        layout = self.config.layout
+        live_panel = LiveDataPanel(id="live-data")
+        stats_panel = StatsPanel(id="stats")
+        chart = ChartWidget(id="chart")
+        chart.styles.height = layout.chart_height
+        chart.styles.margin = (layout.panel_gap, layout.panel_gap, layout.panel_gap, layout.panel_gap)
+
         yield Header()
-        yield Vertical(
-            LiveDataPanel(id="live-data"),
-            StatsPanel(id="stats"),
-            ChartWidget(id="chart"),
-        )
+        if layout.summary_mode == "side_by_side":
+            summary_row = Horizontal(live_panel, stats_panel, id="summary-row")
+            summary_row.styles.height = layout.summary_height
+            summary_row.styles.margin = (layout.panel_gap, layout.panel_gap, 0, layout.panel_gap)
+            live_panel.styles.width = f"{layout.live_weight}fr"
+            live_panel.styles.height = "100%"
+            live_panel.styles.margin = (0, layout.panel_gap, 0, 0)
+            stats_panel.styles.width = f"{layout.stats_weight}fr"
+            stats_panel.styles.height = "100%"
+            yield Vertical(summary_row, chart)
+        else:
+            live_panel.styles.height = layout.live_height
+            live_panel.styles.margin = (layout.panel_gap, layout.panel_gap, 0, layout.panel_gap)
+            stats_panel.styles.height = layout.stats_height
+            stats_panel.styles.margin = (layout.panel_gap, layout.panel_gap, 0, layout.panel_gap)
+            yield Vertical(live_panel, stats_panel, chart)
         yield Footer()
 
     def on_mount(self) -> None:
