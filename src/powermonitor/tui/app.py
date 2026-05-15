@@ -2,22 +2,51 @@
 
 import asyncio
 import contextlib
+from typing import Protocol
 
 from textual.app import App
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
-from textual.containers import Vertical
+from textual.containers import Container
+from textual.css.query import NoMatches
+from textual.events import Resize
 from textual.widgets import Footer
 from textual.widgets import Header
 
 from ..collector import default_collector
+from ..collector.base import PowerCollector
 from ..config import PowerMonitorConfig
 from ..database import Database
 from ..models import PowerReading
+from .layout import TUILayoutMode
+from .layout import select_tui_layout
 from .widgets import ChartWidget
 from .widgets import LiveDataPanel
 from .widgets import StatsPanel
+
+
+class PowerDataStore(Protocol):
+    """Persistence operations used by the TUI."""
+
+    def insert_reading(self, reading: PowerReading) -> int:
+        """Store a power reading and return its row ID."""
+        ...
+
+    def query_history(self, limit: int | None = 20) -> list[PowerReading]:
+        """Return recent power readings."""
+        ...
+
+    def get_statistics(self, limit: int | None = 100) -> dict:
+        """Return aggregate statistics for recent power readings."""
+        ...
+
+    def clear_history(self) -> int:
+        """Delete stored readings and return the deleted row count."""
+        ...
+
+    def close(self) -> None:
+        """Close database resources."""
+        ...
 
 
 class PowerMonitorApp(App):
@@ -36,27 +65,54 @@ class PowerMonitorApp(App):
     }
 
     #summary-row {
-        height: 10;
         margin: 1 1 0 1;
+    }
+
+    #layout-root {
+        layout: vertical;
+        height: 1fr;
+    }
+
+    #layout-root.stacked #summary-row {
+        layout: vertical;
+        height: 22;
+    }
+
+    #layout-root.side-by-side #summary-row {
+        layout: horizontal;
+        height: 10;
+    }
+
+    #layout-root.compact-stacked #summary-row {
+        layout: vertical;
+        height: 14;
     }
 
     #live-data {
         width: 1fr;
-        height: 100%;
+        height: 1fr;
         border: solid green;
         padding: 1;
+    }
+
+    #layout-root.side-by-side #live-data {
         margin: 0 1 0 0;
+    }
+
+    #layout-root.stacked #live-data,
+    #layout-root.compact-stacked #live-data {
+        margin: 0 0 1 0;
     }
 
     #stats {
         width: 1fr;
-        height: 100%;
+        height: 1fr;
         border: solid cyan;
         padding: 1;
     }
 
     #chart {
-        height: 20;
+        height: 1fr;
         border: solid blue;
         padding: 1;
         margin: 1;
@@ -72,41 +128,49 @@ class PowerMonitorApp(App):
 
     TITLE = "powermonitor - macOS Power Monitoring"
 
-    def __init__(self, config: PowerMonitorConfig | None = None, **kwargs) -> None:
+    def __init__(
+        self,
+        config: PowerMonitorConfig | None = None,
+        collector: PowerCollector | None = None,
+        database: PowerDataStore | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.config = config or PowerMonitorConfig()
-        self.collector = default_collector()
-        self.database = Database(self.config.database_path)
+        self.collector = collector if collector is not None else default_collector()
+        self.database = database if database is not None else Database(self.config.database_path)
         self._collector_task: asyncio.Task | None = None
+        self._layout_mode = TUILayoutMode.COMPACT_STACKED
 
     def compose(self) -> ComposeResult:
-        """Compose the TUI layout.
-
-        Top row:
-        - LiveDataPanel: Real-time power data
-        - StatsPanel: Historical statistics
-
-        Bottom row:
-        - ChartWidget: Power over time chart
-        """
+        """Compose the TUI layout."""
+        self._layout_mode = select_tui_layout(self.size)
         yield Header()
-        yield Vertical(
-            Horizontal(
+        yield Container(
+            Container(
                 LiveDataPanel(id="live-data"),
                 StatsPanel(id="stats"),
                 id="summary-row",
             ),
             ChartWidget(id="chart"),
+            id="layout-root",
+            classes=self._layout_mode.value,
         )
         yield Footer()
 
     def on_mount(self) -> None:
         """Start background data collection when app mounts."""
+        self._apply_layout_mode(select_tui_layout(self.size))
+
         # Start periodic data collection
         self._collector_task = asyncio.create_task(self._collection_loop())
 
         # Initial data load
         self.refresh_all_data()
+
+    def on_resize(self, event: Resize) -> None:
+        """Adapt layout when the terminal size crosses a layout threshold."""
+        self._apply_layout_mode(select_tui_layout(event.size))
 
     async def on_unmount(self) -> None:
         """Clean up when app unmounts."""
@@ -177,6 +241,23 @@ class PowerMonitorApp(App):
         history = self.database.query_history(limit=self.config.chart_history_limit)
         chart = self.query_one("#chart", ChartWidget)
         chart.update_chart(history)
+
+    def _apply_layout_mode(self, layout_mode: TUILayoutMode) -> None:
+        """Apply a layout mode without replacing mounted widgets."""
+        if layout_mode == self._layout_mode:
+            return
+
+        try:
+            layout_root = self.query_one("#layout-root", Container)
+        except NoMatches:
+            self._layout_mode = layout_mode
+            return
+
+        for existing_mode in TUILayoutMode:
+            layout_root.remove_class(existing_mode.value)
+        layout_root.add_class(layout_mode.value)
+        self._layout_mode = layout_mode
+        layout_root.refresh(layout=True)
 
     def refresh_all_data(self) -> None:
         """Force refresh all data (for 'r' key binding)."""
