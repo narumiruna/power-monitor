@@ -1,12 +1,33 @@
 """Configuration file loader for powermonitor."""
 
 import tomllib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
 from .config import PowerMonitorConfig
+
+CONFIG_SECTION_KEYS = {
+    "tui": {"interval", "stats_limit", "chart_limit"},
+    "database": {"path"},
+    "cli": {"default_history_limit", "default_export_limit"},
+    "logging": {"level"},
+}
+
+
+@dataclass(slots=True, frozen=True)
+class ConfigValidationResult:
+    """Result of strict config file validation."""
+
+    path: Path
+    errors: list[str]
+
+    @property
+    def is_valid(self) -> bool:
+        """Return True when the config file has no validation errors."""
+        return not self.errors
 
 
 def get_config_path() -> Path:
@@ -16,6 +37,37 @@ def get_config_path() -> Path:
         Path to ~/.powermonitor/config.toml
     """
     return Path.home() / ".powermonitor" / "config.toml"
+
+
+def default_config_toml() -> str:
+    """Build a commented default TOML config file."""
+    config = PowerMonitorConfig()
+    database_path = str(config.database_path).replace("\\", "\\\\").replace('"', '\\"')
+
+    return f"""# powermonitor configuration file
+
+[tui]
+# Data collection interval in seconds
+interval = {config.collection_interval}
+# Number of readings for statistics
+stats_limit = {config.stats_history_limit}
+# Number of readings to display in chart
+chart_limit = {config.chart_history_limit}
+
+[database]
+# Database file location
+path = "{database_path}"
+
+[cli]
+# Default limit for history command
+default_history_limit = {config.default_history_limit}
+# Default limit for export command
+default_export_limit = {config.default_export_limit}
+
+[logging]
+# Logging level: DEBUG, INFO, WARNING, ERROR
+level = "{config.log_level}"
+"""
 
 
 def _convert_to_type(value: Any, target_type: type, field_name: str) -> Any:
@@ -89,6 +141,40 @@ def _warn_unknown_keys(user_config: dict[str, Any], section: str, valid_keys: se
             )
 
 
+def _find_structure_issues(user_config: dict[str, Any], config_path: Path) -> list[str]:
+    """Find unknown sections, unknown keys, and malformed section tables."""
+    issues: list[str] = []
+
+    for section, valid_keys in CONFIG_SECTION_KEYS.items():
+        if section not in user_config:
+            continue
+
+        section_data = user_config[section]
+        if not isinstance(section_data, dict):
+            continue
+
+        for key in section_data:
+            if key not in valid_keys:
+                issues.append(
+                    f"Unknown key '{key}' in [{section}] section of {config_path} - ignoring "
+                    f"(valid keys: {', '.join(sorted(valid_keys))})"
+                )
+
+    valid_sections = set(CONFIG_SECTION_KEYS)
+    for section in user_config:
+        if section not in valid_sections:
+            issues.append(f"Unknown config section [{section}] in {config_path} - ignoring")
+
+    for section in user_config:
+        if section in valid_sections and not isinstance(user_config[section], dict):
+            issues.append(
+                f"Config section [{section}] in {config_path} must be a table, "
+                f"but got {type(user_config[section]).__name__} - ignoring section"
+            )
+
+    return issues
+
+
 def _load_toml_file(config_path: Path) -> dict[str, Any] | None:
     """Load and parse TOML file, returning None on any error.
 
@@ -116,25 +202,88 @@ def _validate_config_structure(user_config: dict[str, Any], config_path: Path) -
         user_config: Loaded TOML configuration
         config_path: Path to config file for error messages
     """
-    # Validate sections and warn about unknown keys
-    _warn_unknown_keys(user_config, "tui", {"interval", "stats_limit", "chart_limit"}, config_path)
-    _warn_unknown_keys(user_config, "database", {"path"}, config_path)
-    _warn_unknown_keys(user_config, "cli", {"default_history_limit", "default_export_limit"}, config_path)
-    _warn_unknown_keys(user_config, "logging", {"level"}, config_path)
+    for issue in _find_structure_issues(user_config, config_path):
+        logger.warning(issue)
 
-    # Warn about unknown sections
-    valid_sections = {"tui", "database", "cli", "logging"}
-    for section in user_config:
-        if section not in valid_sections:
-            logger.warning(f"Unknown config section [{section}] in {config_path} - ignoring")
 
-    # Check section types
-    for section in user_config:
-        if section in valid_sections and not isinstance(user_config[section], dict):
-            logger.warning(
-                f"Config section [{section}] in {config_path} must be a table, "
-                f"but got {type(user_config[section]).__name__} - ignoring section"
-            )
+def validate_config_file(config_path: Path | None = None) -> ConfigValidationResult:
+    """Strictly validate a powermonitor config file.
+
+    Runtime loading remains forgiving and falls back per field. This validator
+    reports the same schema issues as errors so users can fix their config file
+    before starting the TUI.
+    """
+    resolved_path = config_path or get_config_path()
+    errors: list[str] = []
+
+    if not resolved_path.exists():
+        return ConfigValidationResult(
+            path=resolved_path,
+            errors=[f"Config file does not exist: {resolved_path}"],
+        )
+
+    try:
+        with open(resolved_path, "rb") as f:
+            user_config = tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        return ConfigValidationResult(
+            path=resolved_path,
+            errors=[f"Failed to parse TOML config from {resolved_path}: {e}"],
+        )
+    except OSError as e:
+        return ConfigValidationResult(
+            path=resolved_path,
+            errors=[f"Failed to read config file {resolved_path}: {e}"],
+        )
+
+    errors.extend(_find_structure_issues(user_config, resolved_path))
+
+    default_config = PowerMonitorConfig()
+
+    def convert_value(key_path: str, target_type: type, default: Any) -> Any:
+        raw_value = _get_nested_value(user_config, key_path, default)
+        if raw_value is default:
+            return default
+        try:
+            return _convert_to_type(raw_value, target_type, key_path)
+        except ValueError as e:
+            errors.append(str(e))
+            return default
+
+    collection_interval = convert_value("tui.interval", float, default_config.collection_interval)
+    stats_history_limit = convert_value("tui.stats_limit", int, default_config.stats_history_limit)
+    chart_history_limit = convert_value("tui.chart_limit", int, default_config.chart_history_limit)
+    default_history_limit = convert_value("cli.default_history_limit", int, default_config.default_history_limit)
+    default_export_limit = convert_value("cli.default_export_limit", int, default_config.default_export_limit)
+
+    database_path_raw = _get_nested_value(user_config, "database.path", default_config.database_path)
+    if not isinstance(database_path_raw, (str, Path)):
+        errors.append(f"Invalid 'database.path' value {database_path_raw!r}; expected a string or Path")
+        database_path = default_config.database_path
+    else:
+        database_path = database_path_raw
+
+    log_level_raw = _get_nested_value(user_config, "logging.level", default_config.log_level)
+    if not isinstance(log_level_raw, str):
+        errors.append(f"Invalid 'logging.level' value {log_level_raw!r}; expected a string")
+        log_level = default_config.log_level
+    else:
+        log_level = log_level_raw
+
+    try:
+        PowerMonitorConfig(
+            collection_interval=collection_interval,
+            stats_history_limit=stats_history_limit,
+            chart_history_limit=chart_history_limit,
+            database_path=database_path,
+            default_history_limit=default_history_limit,
+            default_export_limit=default_export_limit,
+            log_level=log_level,
+        )
+    except ValueError as e:
+        errors.append(str(e))
+
+    return ConfigValidationResult(path=resolved_path, errors=errors)
 
 
 def load_config() -> PowerMonitorConfig:

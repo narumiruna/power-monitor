@@ -9,8 +9,10 @@ from typing import Annotated
 import typer
 from loguru import logger
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
+from . import config_loader
 from .config import PowerMonitorConfig
 from .config_loader import load_config
 from .database import Database
@@ -23,6 +25,62 @@ app = typer.Typer(
     no_args_is_help=False,
 )
 console = Console()
+config_app = typer.Typer(help="Create, inspect, and validate powermonitor config files")
+app.add_typer(config_app, name="config")
+
+
+@config_app.command("show")
+def config_show() -> None:
+    """Show the effective configuration and config file path."""
+    config_path = config_loader.get_config_path()
+    config = load_config()
+
+    console.print(f"[bold]Config file:[/bold] {escape(str(config_path))}")
+    console.print(f"[bold]Config file exists:[/bold] {'yes' if config_path.exists() else 'no'}")
+    console.print(f"[bold]Database path:[/bold] {escape(str(config.database_path))}")
+
+    table = Table(title="Effective Configuration", show_header=False)
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value", style="white", overflow="fold")
+
+    table.add_row("Collection interval", f"{config.collection_interval:g} seconds")
+    table.add_row("Stats history limit", str(config.stats_history_limit))
+    table.add_row("Chart history limit", str(config.chart_history_limit))
+    table.add_row("Default history limit", str(config.default_history_limit))
+    table.add_row("Default export limit", str(config.default_export_limit))
+    table.add_row("Log level", config.log_level)
+
+    console.print(table)
+
+
+@config_app.command("init")
+def config_init() -> None:
+    """Create a commented default config file if it does not already exist."""
+    config_path = config_loader.get_config_path()
+
+    if config_path.exists():
+        console.print(f"[red]Error: Config file already exists at {escape(str(config_path))}[/red]")
+        console.print("Remove it before running init again.")
+        raise typer.Exit(1)
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(config_loader.default_config_toml(), encoding="utf-8")
+    console.print(f"[green]Created config file at {escape(str(config_path))}[/green]")
+
+
+@config_app.command("validate")
+def config_validate() -> None:
+    """Validate the configured TOML file without launching the TUI."""
+    result = config_loader.validate_config_file()
+
+    if result.is_valid:
+        console.print(f"[green]Config file is valid:[/green] {escape(str(result.path))}")
+        return
+
+    console.print(f"[red]Config file is invalid:[/red] {escape(str(result.path))}")
+    for error in result.errors:
+        console.print(f"[red]-[/red] {escape(error)}")
+    raise typer.Exit(1)
 
 
 @app.callback()

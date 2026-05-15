@@ -2,13 +2,18 @@
 
 import json
 import re
+import tomllib
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
+from pathlib import Path
 
 from typer.testing import CliRunner
 
+from powermonitor import cli as cli_module
+from powermonitor import config_loader
 from powermonitor.cli import app
+from powermonitor.config import PowerMonitorConfig
 from powermonitor.database import Database
 from powermonitor.models import PowerReading
 
@@ -60,6 +65,148 @@ def create_test_readings(database: Database, count: int = 10) -> list[PowerReadi
         readings.append(reading)
 
     return readings
+
+
+def patch_config_path(monkeypatch, config_path: Path) -> None:
+    """Point CLI config commands at a test config path."""
+    monkeypatch.setattr(config_loader, "get_config_path", lambda: config_path)
+
+
+def test_default_invocation_launches_tui_with_cli_overrides(monkeypatch, temp_config):
+    """Test that invoking powermonitor without a subcommand still launches the TUI path."""
+    launched: dict[str, object] = {}
+
+    class DummyPowerMonitorApp:
+        def __init__(self, config: PowerMonitorConfig) -> None:
+            launched["config"] = config
+
+        def run(self) -> None:
+            launched["ran"] = True
+
+    monkeypatch.setattr(cli_module.sys, "platform", "darwin")
+    monkeypatch.setattr(cli_module, "PowerMonitorApp", DummyPowerMonitorApp)
+
+    result = runner.invoke(
+        app,
+        ["--interval", "2.5", "--stats-limit", "42", "--chart-limit", "24", "--debug"],
+    )
+
+    assert result.exit_code == 0
+    assert launched["ran"] is True
+    config = launched["config"]
+    assert isinstance(config, PowerMonitorConfig)
+    assert config.collection_interval == 2.5
+    assert config.stats_history_limit == 42
+    assert config.chart_history_limit == 24
+    assert config.log_level == "DEBUG"
+
+
+def test_config_show_displays_effective_config(temp_config, temp_db):
+    """Test config show displays the effective loaded config."""
+    result = runner.invoke(app, ["config", "show"])
+
+    output = strip_ansi(result.stdout)
+    assert result.exit_code == 0
+    assert "Effective Configuration" in output
+    assert str(temp_config) in output
+    assert str(temp_db) in output
+    assert "Collection interval" in output
+    assert "1 seconds" in output
+    assert "Stats history limit" in output
+    assert "100" in output
+    assert "Chart history limit" in output
+    assert "60" in output
+    assert "Log level" in output
+    assert "INFO" in output
+
+
+def test_config_init_creates_default_config(monkeypatch, tmp_path):
+    """Test config init creates a commented, valid default TOML file."""
+    config_path = tmp_path / ".powermonitor" / "config.toml"
+    patch_config_path(monkeypatch, config_path)
+
+    result = runner.invoke(app, ["config", "init"])
+
+    assert result.exit_code == 0
+    assert "Created config file" in strip_ansi(result.stdout)
+    assert config_path.exists()
+    content = config_path.read_text(encoding="utf-8")
+    assert "# powermonitor configuration file" in content
+    parsed = tomllib.loads(content)
+    assert parsed["tui"]["interval"] == 1.0
+    assert parsed["database"]["path"]
+    assert parsed["logging"]["level"] == "INFO"
+
+
+def test_config_init_refuses_existing_config(monkeypatch, tmp_path):
+    """Test config init does not overwrite an existing config file."""
+    config_path = tmp_path / "config.toml"
+    original = '[logging]\nlevel = "DEBUG"\n'
+    config_path.write_text(original, encoding="utf-8")
+    patch_config_path(monkeypatch, config_path)
+
+    result = runner.invoke(app, ["config", "init"])
+
+    assert result.exit_code == 1
+    assert "already exists" in strip_ansi(result.stdout)
+    assert config_path.read_text(encoding="utf-8") == original
+
+
+def test_config_validate_valid_config(temp_config):
+    """Test config validate succeeds for a valid config file."""
+    result = runner.invoke(app, ["config", "validate"])
+
+    assert result.exit_code == 0
+    assert "Config file is valid" in strip_ansi(result.stdout)
+    assert str(temp_config) in strip_ansi(result.stdout)
+
+
+def test_config_validate_invalid_toml(monkeypatch, tmp_path):
+    """Test config validate reports TOML syntax errors."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text("invalid toml", encoding="utf-8")
+    patch_config_path(monkeypatch, config_path)
+
+    result = runner.invoke(app, ["config", "validate"])
+
+    assert result.exit_code == 1
+    assert "Failed to parse TOML config" in strip_ansi(result.stdout)
+
+
+def test_config_validate_invalid_field_value(monkeypatch, tmp_path):
+    """Test config validate reports invalid field values."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text("[tui]\ninterval = 0\n", encoding="utf-8")
+    patch_config_path(monkeypatch, config_path)
+
+    result = runner.invoke(app, ["config", "validate"])
+
+    assert result.exit_code == 1
+    assert "collection_interval must be positive" in strip_ansi(result.stdout)
+
+
+def test_config_validate_unknown_section(monkeypatch, tmp_path):
+    """Test config validate reports unknown config sections."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[unknown]\nkey = "value"\n', encoding="utf-8")
+    patch_config_path(monkeypatch, config_path)
+
+    result = runner.invoke(app, ["config", "validate"])
+
+    assert result.exit_code == 1
+    assert "Unknown config section [unknown]" in strip_ansi(result.stdout)
+
+
+def test_config_validate_unknown_key(monkeypatch, tmp_path):
+    """Test config validate reports unknown keys in known sections."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text("[tui]\ninterval = 1.0\ntyop = true\n", encoding="utf-8")
+    patch_config_path(monkeypatch, config_path)
+
+    result = runner.invoke(app, ["config", "validate"])
+
+    assert result.exit_code == 1
+    assert "Unknown key 'tyop'" in strip_ansi(result.stdout)
 
 
 def test_export_csv(database, temp_config, tmp_path):
