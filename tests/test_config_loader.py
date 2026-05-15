@@ -7,12 +7,14 @@ from unittest.mock import patch
 import pytest
 from loguru import logger
 
+from powermonitor.config import TUILayoutConfig
 from powermonitor.config_loader import _convert_to_type
 from powermonitor.config_loader import _get_nested_value
 from powermonitor.config_loader import _load_toml_file
 from powermonitor.config_loader import _validate_config_structure
 from powermonitor.config_loader import _warn_unknown_keys
 from powermonitor.config_loader import load_config
+from powermonitor.config_loader import save_layout_config
 from powermonitor.config_loader import validate_config_file
 
 
@@ -627,3 +629,90 @@ unknown_key = true
             assert "Unknown key 'unknown_key' in [tui.layout]" in "\n".join(result.errors)
         finally:
             temp_path.unlink()
+
+
+class TestSaveLayoutConfig:
+    """Tests for saving runtime layout changes."""
+
+    def test_save_layout_config_replaces_existing_layout_table(self, tmp_path):
+        """Test saving layout replaces only the [tui.layout] table."""
+        config_path = tmp_path / "config.toml"
+        config_path.write_text(
+            """
+[tui]
+interval = 2.0
+
+[tui.layout] # runtime layout settings
+summary_mode = "side_by_side"
+live_weight = 1
+stats_weight = 1
+live_height = 8
+stats_height = 10
+summary_height = 10
+chart_height = 20
+panel_gap = 1
+
+[logging]
+level = "DEBUG"
+""",
+            encoding="utf-8",
+        )
+        layout = TUILayoutConfig(
+            summary_mode="stacked",
+            live_weight=4,
+            stats_weight=2,
+            live_height=6,
+            stats_height=12,
+            summary_height=9,
+            chart_height=18,
+            panel_gap=0,
+        )
+
+        saved_path = save_layout_config(layout, config_path)
+        result = validate_config_file(saved_path)
+
+        assert saved_path == config_path
+        assert result.is_valid
+        content = config_path.read_text(encoding="utf-8")
+        assert "interval = 2.0" in content
+        assert 'level = "DEBUG"' in content
+        assert 'summary_mode = "stacked"' in content
+        assert "live_weight = 4" in content
+        assert "chart_height = 18" in content
+
+    def test_save_layout_config_inserts_missing_layout_table(self, tmp_path):
+        """Test saving layout inserts [tui.layout] after [tui] when missing."""
+        config_path = tmp_path / "config.toml"
+        config_path.write_text(
+            """
+[tui]
+interval = 2.0
+
+[database]
+path = "~/test.db"
+""",
+            encoding="utf-8",
+        )
+
+        save_layout_config(TUILayoutConfig(summary_mode="stacked", chart_height=14), config_path)
+        content = config_path.read_text(encoding="utf-8")
+
+        assert content.index("[tui.layout]") < content.index("[database]")
+        assert 'summary_mode = "stacked"' in content
+        assert "chart_height = 14" in content
+        assert validate_config_file(config_path).is_valid
+
+    def test_save_layout_config_creates_default_file_when_missing(self, tmp_path):
+        """Test saving layout creates a full default config when no file exists."""
+        config_path = tmp_path / ".powermonitor" / "config.toml"
+
+        save_layout_config(TUILayoutConfig(summary_mode="stacked", live_height=7), config_path)
+
+        assert config_path.exists()
+        assert validate_config_file(config_path).is_valid
+        with patch("powermonitor.config_loader.get_config_path") as mock_path:
+            mock_path.return_value = config_path
+            config = load_config()
+
+        assert config.layout.summary_mode == "stacked"
+        assert config.layout.live_height == 7

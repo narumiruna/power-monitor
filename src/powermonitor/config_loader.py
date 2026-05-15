@@ -51,9 +51,28 @@ def get_config_path() -> Path:
     return Path.home() / ".powermonitor" / "config.toml"
 
 
-def default_config_toml() -> str:
+def layout_config_toml(layout: TUILayoutConfig) -> str:
+    """Build the TOML table for TUI layout settings."""
+    return f"""[tui.layout]
+# Layout mode for live data and statistics: side_by_side or stacked
+summary_mode = "{layout.summary_mode}"
+# Relative widths when summary_mode = "side_by_side"
+live_weight = {layout.live_weight}
+stats_weight = {layout.stats_weight}
+# Panel heights when summary_mode = "stacked"
+live_height = {layout.live_height}
+stats_height = {layout.stats_height}
+# Shared summary row and chart sizing
+summary_height = {layout.summary_height}
+chart_height = {layout.chart_height}
+# Gap between panels, in terminal cells
+panel_gap = {layout.panel_gap}
+"""
+
+
+def default_config_toml(config: PowerMonitorConfig | None = None) -> str:
     """Build a commented default TOML config file."""
-    config = PowerMonitorConfig()
+    config = config or PowerMonitorConfig()
     database_path = str(config.database_path).replace("\\", "\\\\").replace('"', '\\"')
 
     return f"""# powermonitor configuration file
@@ -66,20 +85,7 @@ stats_limit = {config.stats_history_limit}
 # Number of readings to display in chart
 chart_limit = {config.chart_history_limit}
 
-[tui.layout]
-# Layout mode for live data and statistics: side_by_side or stacked
-summary_mode = "{config.layout.summary_mode}"
-# Relative widths when summary_mode = "side_by_side"
-live_weight = {config.layout.live_weight}
-stats_weight = {config.layout.stats_weight}
-# Panel heights when summary_mode = "stacked"
-live_height = {config.layout.live_height}
-stats_height = {config.layout.stats_height}
-# Shared summary row and chart sizing
-summary_height = {config.layout.summary_height}
-chart_height = {config.layout.chart_height}
-# Gap between panels, in terminal cells
-panel_gap = {config.layout.panel_gap}
+{layout_config_toml(config.layout)}
 
 [database]
 # Database file location
@@ -142,6 +148,61 @@ def _get_nested_value(config: dict[str, Any], key_path: str, default: Any) -> An
         current = current[part]
 
     return current
+
+
+def _table_name(line: str) -> str | None:
+    """Return a TOML table name from a line, or None when it is not a table header."""
+    stripped = line.strip()
+    if stripped.startswith("[[") or stripped.endswith("]]"):
+        return None
+    if not stripped.startswith("["):
+        return None
+
+    closing_index = stripped.find("]")
+    if closing_index == -1:
+        return None
+
+    remainder = stripped[closing_index + 1 :].strip()
+    if remainder and not remainder.startswith("#"):
+        return None
+
+    return stripped[1:closing_index].strip()
+
+
+def _replace_or_insert_table(text: str, table_name: str, table_text: str, after_table: str | None = None) -> str:
+    """Replace a TOML table, or insert it after another table when missing."""
+    lines = text.splitlines()
+    table_lines = table_text.rstrip("\n").splitlines()
+
+    for index, line in enumerate(lines):
+        if _table_name(line) != table_name:
+            continue
+
+        end_index = len(lines)
+        for next_index in range(index + 1, len(lines)):
+            if _table_name(lines[next_index]) is not None:
+                end_index = next_index
+                break
+
+        updated_lines = [*lines[:index], *table_lines, "", *lines[end_index:]]
+        return "\n".join(updated_lines).rstrip() + "\n"
+
+    if after_table is not None:
+        for index, line in enumerate(lines):
+            if _table_name(line) != after_table:
+                continue
+
+            insert_index = len(lines)
+            for next_index in range(index + 1, len(lines)):
+                if _table_name(lines[next_index]) is not None:
+                    insert_index = next_index
+                    break
+
+            updated_lines = [*lines[:insert_index], "", *table_lines, *lines[insert_index:]]
+            return "\n".join(updated_lines).rstrip() + "\n"
+
+    separator = "\n\n" if text.strip() else ""
+    return f"{text.rstrip()}{separator}{table_text.rstrip()}\n"
 
 
 def _warn_unknown_keys(user_config: dict[str, Any], section: str, valid_keys: set[str], config_path: Path) -> None:
@@ -329,6 +390,35 @@ def _load_toml_file(config_path: Path) -> dict[str, Any] | None:
     except OSError as e:
         logger.warning(f"Failed to read config file {config_path}: {e}")
         return None
+
+
+def save_layout_config(layout: TUILayoutConfig, config_path: Path | None = None) -> Path:
+    """Persist layout settings to the user config file.
+
+    Existing config files are updated by replacing only the [tui.layout] table.
+    If no config file exists, a full default config is created with the supplied
+    layout values.
+    """
+    resolved_path = config_path or get_config_path()
+    resolved_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if resolved_path.exists():
+        current_text = resolved_path.read_text(encoding="utf-8")
+        next_text = _replace_or_insert_table(
+            current_text,
+            table_name="tui.layout",
+            table_text=layout_config_toml(layout),
+            after_table="tui",
+        )
+    else:
+        next_text = default_config_toml(PowerMonitorConfig(layout=layout))
+
+    resolved_path.write_text(next_text, encoding="utf-8")
+    validation = validate_config_file(resolved_path)
+    if not validation.is_valid:
+        error_text = "; ".join(validation.errors)
+        raise ValueError(f"Saved layout config is invalid: {error_text}")
+    return resolved_path
 
 
 def _validate_config_structure(user_config: dict[str, Any], config_path: Path) -> None:

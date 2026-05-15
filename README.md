@@ -79,6 +79,15 @@ The TUI displays:
 - `q` or `ESC` - Quit application
 - `r` - Force refresh data
 - `c` - Clear history (with confirmation)
+- `l` - Switch between side-by-side and stacked layout
+- `s` - Save the current TUI layout to `~/.powermonitor/config.toml`
+
+**Mouse Layout Controls:**
+- Drag the divider between live power and statistics to resize the side-by-side panels.
+- Drag horizontal dividers to resize summary, stacked panels, and chart height.
+- Use the layout button in the TUI to switch between side-by-side and stacked layout.
+- Layout changes apply immediately for the current session. They are written to the config file only after using
+  `s` or the save button.
 
 ### Configuration File
 
@@ -165,6 +174,8 @@ summary_height = 10
 chart_height = 18
 panel_gap = 1
 ```
+
+The same layout values can be adjusted in the TUI with the mouse and saved back to this config file explicitly.
 
 ### CLI Commands
 
