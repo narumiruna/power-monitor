@@ -110,6 +110,21 @@ level = "INFO"           # Logging level: DEBUG, INFO, WARNING, ERROR
 
 If no config file exists, powermonitor uses sensible defaults. CLI arguments always override config file values.
 
+Manage the config file without launching the TUI:
+
+```bash
+# Create ~/.powermonitor/config.toml if it does not already exist
+powermonitor config init
+
+# Show the effective config and config file path
+powermonitor config show
+
+# Validate config syntax, sections, keys, and values
+powermonitor config validate
+```
+
+`powermonitor config init` refuses to overwrite an existing file.
+
 **Example**: Set custom database path and collection interval:
 
 ```toml
@@ -123,6 +138,16 @@ interval = 2.0
 Then run: `powermonitor` (uses config) or `powermonitor --interval 0.5` (overrides config)
 
 ### CLI Commands
+
+#### Manage Configuration
+
+Create, inspect, and validate `~/.powermonitor/config.toml`:
+
+```bash
+powermonitor config init
+powermonitor config show
+powermonitor config validate
+```
 
 #### Export Data
 

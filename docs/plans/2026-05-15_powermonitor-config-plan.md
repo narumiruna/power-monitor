@@ -25,41 +25,40 @@ the TUI.
 - CLI arguments should continue to override config file values for the TUI.
 - Config file creation should be conservative and should not overwrite an existing file unless an explicit flag is added.
 
-## Unknowns
+## Resolved Decisions
 
-- Should `powermonitor config init` support `--force` overwrite behavior? Resolve before implementing `init`; verify with
-  CLI tests for existing-file behavior.
-- Should `powermonitor config show` output Rich text only, or also support machine-readable JSON? Resolve before changing
-  output shape; verify with tests for the chosen format.
-- Should `powermonitor config edit` be included in the first slice? Resolve by deciding whether launching `$EDITOR` is
-  important enough to test and document now.
+- `powermonitor config init` refuses to overwrite an existing file. No `--force` flag is included in this slice.
+- `powermonitor config show` uses human-readable Rich output only. Machine-readable JSON is not included in this slice.
+- `powermonitor config edit` is deferred because `$EDITOR` launching is not required for the first tested config slice.
 
 ## Plan
 
-- [ ] Capture the current quality baseline before implementation; verify with `make all` and record any pre-existing
+- [x] Capture the current quality baseline before implementation; verify with `make all` and record any pre-existing
   failures before changing code.
-- [ ] Add a `config` Typer command group in `src/powermonitor/cli.py` that does not interfere with default TUI launch;
+- [x] Add a `config` Typer command group in `src/powermonitor/cli.py` that does not interfere with default TUI launch;
   verify with `uv run powermonitor --help` and existing CLI tests.
-- [ ] Add `powermonitor config show` to display the effective configuration and config file path; verify with a CLI test
+- [x] Add `powermonitor config show` to display the effective configuration and config file path; verify with a CLI test
   that uses the existing `temp_config` fixture and asserts database path, interval, limits, and log level are shown.
-- [ ] Add `powermonitor config init` to create a commented default config at `get_config_path()` when no file exists;
+- [x] Add `powermonitor config init` to create a commented default config at `get_config_path()` when no file exists;
   verify with a CLI test using `monkeypatch` and `tmp_path` that the file is created and valid TOML.
-- [ ] Define and test existing-file behavior for `config init`; verify that the command refuses to overwrite by default
+- [x] Define and test existing-file behavior for `config init`; verify that the command refuses to overwrite by default
   or that `--force` behavior is explicitly covered by CLI tests.
-- [ ] Add `powermonitor config validate` to parse and validate the configured TOML without starting the TUI; verify with
+- [x] Add `powermonitor config validate` to parse and validate the configured TOML without starting the TUI; verify with
   tests for valid TOML, invalid TOML syntax, invalid field values, unknown sections, and unknown keys.
-- [ ] Reuse `PowerMonitorConfig` and `config_loader` validation paths instead of adding a second config schema; verify
+- [x] Reuse `PowerMonitorConfig` and `config_loader` validation paths instead of adding a second config schema; verify
   with focused tests in `tests/test_config_loader.py` or `tests/test_cli.py`.
-- [ ] Update `README.md` with the new `powermonitor config` commands and examples; verify the documented commands match
+- [x] Update `README.md` with the new `powermonitor config` commands and examples; verify the documented commands match
   `uv run powermonitor config --help`.
-- [ ] Decide whether `powermonitor config edit` belongs in this release slice; if accepted, implement it with a mocked
+- [x] Decide whether `powermonitor config edit` belongs in this release slice; if accepted, implement it with a mocked
   editor invocation test, otherwise leave it as a later candidate in this file.
-- [ ] Run the final quality gate; verify with `make all` and `uv build --no-sources`.
+- [x] Run the final quality gate; verify with `make all` and `uv build --no-sources`.
 
 ## Later Candidates
 
 - [ ] Add data analysis documentation with CSV and JSON examples; verify by adding a README or docs section that uses
   fields produced by `powermonitor export`.
+- [ ] Add `powermonitor config edit`; verify with a mocked editor invocation test and platform-neutral editor failure
+  handling.
 - [ ] Add a battery health interpretation guide; verify that thresholds match the `health` command behavior in
   `src/powermonitor/cli.py`.
 - [ ] Investigate dynamic TUI config reload; verify feasibility with a small design note covering file watching,
@@ -84,10 +83,10 @@ the TUI.
 
 ## Completion Checklist
 
-- [ ] `powermonitor config show`, `powermonitor config init`, and `powermonitor config validate` are implemented and
+- [x] `powermonitor config show`, `powermonitor config init`, and `powermonitor config validate` are implemented and
   verified by CLI tests.
-- [ ] Default `powermonitor` invocation still launches the TUI path, verified by existing or new CLI/TUI tests.
-- [ ] Runtime config loading and config validation share the same schema behavior, verified by tests that cover invalid
+- [x] Default `powermonitor` invocation still launches the TUI path, verified by existing or new CLI/TUI tests.
+- [x] Runtime config loading and config validation share the same schema behavior, verified by tests that cover invalid
   values and unknown keys.
-- [ ] README usage examples match command help, verified with `uv run powermonitor config --help`.
-- [ ] Repository quality gates pass, verified with `make all` and `uv build --no-sources`.
+- [x] README usage examples match command help, verified with `uv run powermonitor config --help`.
+- [x] Repository quality gates pass, verified with `make all` and `uv build --no-sources`.
