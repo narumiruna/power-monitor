@@ -10,7 +10,7 @@ uvx powermonitor
 
 ## Features
 
-- 🖥️ **Auto-updating TUI** with 3-panel layout (Textual framework)
+- 🖥️ **Auto-updating TUI** with adaptive 3-panel layout (Textual framework)
 - ⚡ **Real-time monitoring** - Updates every 1 second automatically
 - 📊 **Live power metrics** - Voltage, amperage, wattage, battery %
 - 📈 **Historical visualization** - Power chart and statistics
@@ -59,6 +59,10 @@ powermonitor --debug
 - `--debug` - Enable debug logging
 
 The TUI displays:
+
+The layout adapts to the terminal size. Tall terminals stack the live data, statistics, and chart panels vertically.
+Shorter wide terminals place the live and statistics panels side by side above the chart, while narrow terminals avoid
+squeezing those summary panels into unreadable columns.
 
 ```
 ┌─ powermonitor ──────────────────────────────┐
@@ -252,7 +256,10 @@ uv run python -c "from powermonitor.collector import default_collector; print(de
 
 ## Architecture
 
-### TUI Layout (3 Panels)
+### Adaptive TUI Layout (3 Panels)
+
+The TUI keeps the same three widgets across layout changes and chooses the most readable arrangement from the current
+terminal size.
 
 1. **LiveDataPanel** (green) - Real-time power data
    - Status: ⚡ Charging / 🔌 AC Power / 🔋 On Battery
