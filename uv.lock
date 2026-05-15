@@ -200,7 +200,7 @@ wheels = [
 
 [[package]]
 name = "powermonitor"
-version = "0.0.9"
+version = "0.0.10"
 source = { editable = "." }
 dependencies = [
     { name = "loguru" },
