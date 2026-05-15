@@ -101,7 +101,8 @@ async def test_app_launches():
     app = PowerMonitorApp(config=config)
 
     async with app.run_test():
-        # App should have header, footer, and 3 panels
+        # App should have header, footer, summary row, and 3 panels
+        assert app.query_one("#summary-row") is not None
         assert app.query_one("#live-data") is not None
         assert app.query_one("#stats") is not None
         assert app.query_one("#chart") is not None

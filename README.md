@@ -62,12 +62,9 @@ The TUI displays:
 
 ```
 ┌─ powermonitor ──────────────────────────────┐
-│ Real-Time Power                           │
-│ ⚡ 45.2W / 67W    🔋 72%    ⚡ Charging   │
-│ 20.0V × 2.26A                             │
-├───────────────────────────────────────────┤
-│ Statistics (Last 100 readings)            │
-│ Avg: 42.3W  Max: 55.1W  Min: 12.4W       │
+│ Real-Time Power       │ Statistics         │
+│ ⚡ 45.2W / 67W         │ Last 100 readings  │
+│ 🔋 72%  20.0V × 2.26A │ Avg: 42.3W         │
 ├───────────────────────────────────────────┤
 │ Power Chart (Last 60 readings)            │
 │     55W ┤      ╭──╮                       │

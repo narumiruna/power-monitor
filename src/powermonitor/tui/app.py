@@ -6,6 +6,7 @@ import contextlib
 from textual.app import App
 from textual.app import ComposeResult
 from textual.binding import Binding
+from textual.containers import Horizontal
 from textual.containers import Vertical
 from textual.widgets import Footer
 from textual.widgets import Header
@@ -34,18 +35,24 @@ class PowerMonitorApp(App):
         background: $surface;
     }
 
+    #summary-row {
+        height: 10;
+        margin: 1 1 0 1;
+    }
+
     #live-data {
-        height: 8;
+        width: 1fr;
+        height: 100%;
         border: solid green;
         padding: 1;
-        margin: 1;
+        margin: 0 1 0 0;
     }
 
     #stats {
-        height: 10;
+        width: 1fr;
+        height: 100%;
         border: solid cyan;
         padding: 1;
-        margin: 1;
     }
 
     #chart {
@@ -75,15 +82,20 @@ class PowerMonitorApp(App):
     def compose(self) -> ComposeResult:
         """Compose the TUI layout.
 
-        3-panel layout:
+        Top row:
         - LiveDataPanel: Real-time power data
         - StatsPanel: Historical statistics
+
+        Bottom row:
         - ChartWidget: Power over time chart
         """
         yield Header()
         yield Vertical(
-            LiveDataPanel(id="live-data"),
-            StatsPanel(id="stats"),
+            Horizontal(
+                LiveDataPanel(id="live-data"),
+                StatsPanel(id="stats"),
+                id="summary-row",
+            ),
             ChartWidget(id="chart"),
         )
         yield Footer()
