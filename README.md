@@ -1,29 +1,73 @@
-# Power Monitor
+# Power Monitor — macOS Battery & Power Monitoring TUI ⚡🔋
 
-macOS power monitoring tool with auto-updating TUI for real-time battery and charging status.
+[![PyPI](https://img.shields.io/pypi/v/powermonitor.svg)](https://pypi.org/project/powermonitor/)
+[![Python](https://img.shields.io/pypi/pyversions/powermonitor.svg)](https://pypi.org/project/powermonitor/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Quick Start
+**powermonitor** is a lightweight **macOS battery monitor**, **MacBook charging monitor**, and **real-time power
+usage TUI** for developers and power users. It displays live wattage, voltage, amperage, battery percentage, charger
+details, historical charts, and battery health trends directly in your terminal.
+
+Use it to answer questions like: “How many watts is my Mac using?”, “Is my charger negotiating the expected power?”,
+and “How is my MacBook battery capacity changing over time?” 📈
+
+**Package name:** `powermonitor` · **Command:** `powermonitor` · **Platform:** macOS · **Storage:** local SQLite
+
+## Quick Start 🚀
 
 ```bash
 uvx powermonitor
 ```
 
-## Features
+## Table of Contents
 
-- 🖥️ **Auto-updating TUI** with adaptive 3-panel layout (Textual framework)
-- ⚡ **Real-time monitoring** - Updates every 1 second automatically
-- 📊 **Live power metrics** - Voltage, amperage, wattage, battery %
-- 📈 **Historical visualization** - Power chart and statistics
-- 🔋 **Battery tracking** - Capacity, charging status, charger info
-- 💾 **SQLite persistence** - Automatic background data logging with proper resource management
-- 🎯 **IOKit/SMC access** - Direct macOS API integration via ctypes
-- 🔄 **Auto-fallback** - Graceful fallback to subprocess-based collection
-- ⚙️ **Configuration file** - Optional TOML config with CLI override support
-- 📤 **Data export** - Export to CSV/JSON formats
-- 🧹 **Data cleanup** - Remove old readings by age or clear all
-- 🏥 **Battery health** - Track battery degradation over time
+- [Why Power Monitor?](#why-power-monitor)
+- [Common Use Cases](#common-use-cases)
+- [Feature Overview](#feature-overview-)
+- [Installation](#installation-)
+- [Usage](#usage)
+- [CLI Commands](#cli-commands)
+- [Requirements](#requirements)
+- [Architecture](#architecture)
+- [Power Monitor vs Built-in macOS Tools](#power-monitor-vs-built-in-macos-tools-)
+- [FAQ](#faq-)
 
-## Installation
+## Why Power Monitor?
+
+- 🖥️ **Beautiful terminal dashboard** - Auto-updating Textual TUI with an adaptive 3-panel layout
+- ⚡ **Real-time macOS power monitoring** - Refreshes every 1 second by default
+- 📊 **Live electrical metrics** - Watts, negotiated charger power, voltage, amperage, and battery percentage
+- 🔋 **MacBook battery tracking** - Capacity, charging state, AC power status, and charger information
+- 📈 **Historical visualization** - Power chart and rolling statistics for recent readings
+- 🏥 **Battery health analysis** - Track capacity changes and battery degradation over time
+- 💾 **Local SQLite history** - Automatic background logging with safe resource management
+- 📤 **CSV/JSON export** - Analyze macOS power data in spreadsheets, notebooks, or scripts
+- 🎯 **IOKit/SMC collection** - Direct macOS API integration via `ctypes` where available
+- 🔄 **Reliable fallback** - Gracefully falls back to `ioreg` subprocess collection
+- ⚙️ **Configurable** - Optional TOML config file plus CLI overrides
+- 🧹 **Easy cleanup** - Remove old readings by age or clear the local database
+
+## Common Use Cases
+
+- Monitor MacBook charging wattage and USB-C power adapter behavior ⚡
+- Watch battery drain and power usage while developing, gaming, compiling, or video editing
+- Export power readings for performance testing, battery experiments, or long-running benchmarks
+- Inspect charger metadata and negotiated wattage without opening system settings
+- Track battery capacity trends from the terminal over days or weeks
+
+## Feature Overview ✨
+
+| Need | powermonitor helps by |
+| --- | --- |
+| Real-time Mac power usage | Showing live watts, voltage, amperage, battery %, and charging state |
+| Charger debugging | Displaying negotiated wattage, charger name, and manufacturer when macOS exposes them |
+| Battery health tracking | Comparing capacity readings across days to reveal degradation trends |
+| Repeatable experiments | Saving local SQLite history and exporting CSV/JSON data |
+| Terminal-native workflow | Running as a fast Textual TUI or focused CLI commands |
+
+## Installation 📦
+
+Install the `powermonitor` command from PyPI with your preferred Python tool manager.
 
 ### Install with uv (recommended)
 
@@ -31,11 +75,25 @@ uvx powermonitor
 uv tool install powermonitor
 ```
 
+### Run without installing
+
+```bash
+uvx powermonitor
+```
+
 ### Install with pipx
 
 ```bash
 pipx install powermonitor
 ```
+
+### Install with pip
+
+```bash
+python -m pip install powermonitor
+```
+
+> `uv tool install` or `pipx install` is recommended for keeping the CLI isolated from project environments.
 
 ## Usage
 
@@ -53,14 +111,14 @@ powermonitor --debug
 ```
 
 **TUI Options:**
+
 - `--interval` / `-i` - Data collection interval in seconds (default: 1.0)
 - `--stats-limit` - Number of readings for statistics (default: 100)
 - `--chart-limit` - Number of readings in chart (default: 60)
 - `--debug` - Enable debug logging
 
-The TUI displays:
-
-The layout adapts to the terminal size. Tall terminals stack the live data, statistics, and chart panels vertically.
+The TUI displays live power data, rolling statistics, and a compact power chart. The layout adapts to the terminal size.
+Tall terminals stack the live data, statistics, and chart panels vertically.
 Shorter wide terminals place the live and statistics panels side by side above the chart, while narrow terminals avoid
 squeezing those summary panels into unreadable columns.
 
@@ -389,12 +447,45 @@ uv run pytest
 uv run powermonitor
 ```
 
+## Power Monitor vs Built-in macOS Tools 🧰
+
+macOS includes tools like `ioreg`, `pmset`, Activity Monitor, and System Information, but they are not optimized for a
+continuous terminal dashboard. `powermonitor` combines live power metrics, battery status, charger details, history,
+charts, and export commands in one developer-friendly CLI.
+
 ## Performance
 
 - **Memory**: <50MB RAM
 - **CPU**: <1% when idle
 - **Update interval**: 1 second (configurable)
 - **Database**: Indexed for fast queries
+
+## FAQ ❓
+
+### What is powermonitor?
+
+`powermonitor` is a Python CLI and terminal UI for macOS power monitoring. It shows real-time Mac battery status,
+wattage, voltage, amperage, charger information, historical charts, and battery health data.
+
+### Does it work on Apple Silicon and Intel Macs?
+
+It is designed for macOS and uses IOKit/SMC data when available, with an `ioreg` fallback for broad compatibility.
+The exact sensors exposed can vary by Mac model and macOS version.
+
+### Where is the power history stored?
+
+Readings are stored locally in SQLite at `~/.powermonitor/powermonitor.db` by default. You can change the database path
+in `~/.powermonitor/config.toml`.
+
+### Can I export MacBook battery and charging data?
+
+Yes. Use `powermonitor export data.csv` or `powermonitor export data.json` to export historical power readings for
+spreadsheets, notebooks, scripts, and benchmark reports.
+
+## Keywords
+
+macOS battery monitor, MacBook battery monitor, Mac power monitor, terminal battery monitor, CLI battery monitor,
+Textual TUI, IOKit, SMC sensors, ioreg, charger wattage, USB-C charging, battery health, SQLite power history.
 
 ## Recent Improvements
 

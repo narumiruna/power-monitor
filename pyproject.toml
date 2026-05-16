@@ -1,10 +1,36 @@
 [project]
 name = "powermonitor"
 version = "0.0.11"
-description = "macOS power monitoring tool with auto-updating TUI"
+description = "macOS battery and power monitor with real-time Textual TUI, SQLite history, and CSV/JSON export"
 readme = "README.md"
 requires-python = ">=3.13"
 authors = [{ name = "narumi", email = "toucans-cutouts0f@icloud.com" }]
+keywords = [
+  "battery",
+  "battery-health",
+  "cli",
+  "iokit",
+  "ioreg",
+  "macbook",
+  "macos",
+  "power-monitor",
+  "python",
+  "textual",
+  "tui",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Environment :: MacOS X",
+  "Intended Audience :: Developers",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: System :: Monitoring",
+  "Topic :: Utilities",
+]
 dependencies = [
   "loguru>=0.7.3",
   "peewee>=3.18.3",
@@ -14,12 +40,12 @@ dependencies = [
   "typer>=0.21.0",
 ]
 
+[project.urls]
+Issues = "https://github.com/narumiruna/power-monitor/issues"
+Repository = "https://github.com/narumiruna/power-monitor"
+
 [project.scripts]
 powermonitor = "powermonitor.cli:app"
-
-[build-system]
-requires = ["uv_build>=0.8.17,<0.9.0"]
-build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
@@ -29,6 +55,31 @@ dev = [
   "ruff>=0.14.10",
   "ty>=0.0.7",
 ]
+
+[build-system]
+requires = ["uv_build>=0.8.17,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.bumpversion]
+current_version = "0.0.11"
+tag = true
+commit = true
+pre_commit_hooks = ["uv lock", "git add uv.lock"]
+
+[tool.pytest.ini_options]
+addopts = [
+  "-v",
+  "--strict-markers",
+  "--tb=short",
+  "--cov=powermonitor",
+  "--cov-report=term-missing",
+]
+python_classes = ["Test*"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 exclude = ["build"]
@@ -52,24 +103,3 @@ select = [
 
 [tool.ruff.lint.isort]
 force-single-line = true
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = [
-  "-v",
-  "--strict-markers",
-  "--tb=short",
-  "--cov=powermonitor",
-  "--cov-report=term-missing",
-]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
-
-[tool.bumpversion]
-current_version = "0.0.11"
-tag = true
-commit = true
-pre_commit_hooks = ["uv lock", "git add uv.lock"]
