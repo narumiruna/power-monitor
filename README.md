@@ -27,10 +27,15 @@ uvx powermonitor
 - [Installation](#installation-)
 - [Usage](#usage)
 - [CLI Commands](#cli-commands)
+  - [CLI Command Reference](#cli-command-reference)
 - [Requirements](#requirements)
 - [Architecture](#architecture)
+- [Data and Privacy](#data-and-privacy-)
+- [Development](#development)
 - [Power Monitor vs Built-in macOS Tools](#power-monitor-vs-built-in-macos-tools-)
+- [Performance](#performance)
 - [FAQ](#faq-)
+- [License](#license)
 
 ## Why Power Monitor?
 
@@ -138,6 +143,7 @@ squeezing those summary panels into unreadable columns.
 ```
 
 **Keyboard Controls:**
+
 - `q` or `ESC` - Quit application
 - `r` - Force refresh data
 - `c` - Clear history (with confirmation)
@@ -196,9 +202,21 @@ interval = 2.0
 
 Then run: `powermonitor` (uses config) or `powermonitor --interval 0.5` (overrides config)
 
-### CLI Commands
+## CLI Commands
 
-#### Manage Configuration
+### CLI Command Reference
+
+| Command | What it does |
+| --- | --- |
+| `powermonitor` | Launches the real-time Textual dashboard |
+| `powermonitor export OUTPUT` | Exports saved readings as CSV or JSON |
+| `powermonitor stats` | Shows database count, date range, size, and path |
+| `powermonitor history` | Prints recent power readings in a table |
+| `powermonitor health` | Summarizes battery capacity changes over time |
+| `powermonitor cleanup` | Deletes old readings or clears the local database |
+| `powermonitor config` | Creates, shows, and validates `config.toml` |
+
+### Manage Configuration
 
 Create, inspect, and validate `~/.powermonitor/config.toml`:
 
@@ -208,7 +226,7 @@ powermonitor config show
 powermonitor config validate
 ```
 
-#### Export Data
+### Export Data
 
 Export power readings to CSV or JSON format:
 
@@ -226,7 +244,7 @@ powermonitor export data.csv --limit 1000
 powermonitor export backup.txt --format csv
 ```
 
-#### Database Statistics
+### Database Statistics
 
 Show database information and statistics:
 
@@ -245,7 +263,7 @@ Database size        2.4 MB
 Database path        /Users/you/.powermonitor/powermonitor.db
 ```
 
-#### View History
+### View History
 
 Display recent power readings in a formatted table:
 
@@ -259,7 +277,7 @@ powermonitor history --limit 50
 
 Output shows time, power, battery %, voltage, current, and status.
 
-#### Clean Up Data
+### Clean Up Data
 
 Remove old readings to manage database size:
 
@@ -271,7 +289,7 @@ powermonitor cleanup --days 30
 powermonitor cleanup --all
 ```
 
-#### Battery Health
+### Battery Health
 
 Track battery degradation over time:
 
@@ -296,21 +314,12 @@ Status               ⚠️  Degrading (normal wear)
 Days analyzed        30
 ```
 
-### Development Mode
-
-```bash
-# Run with verbose collector info
-uv run python -c "from powermonitor.collector import default_collector; collector = default_collector(verbose=True); print(collector.collect())"
-
-# Test data collection
-uv run python -c "from powermonitor.collector import default_collector; print(default_collector().collect())"
-```
-
 ## Requirements
 
 - **macOS**: 12.0+ (Monterey or later)
 - **Python**: 3.13+ (uses modern type hints)
-- **Dependencies**: textual, rich, textual-plotext (auto-installed by uv)
+- **Dependencies**: Textual, Rich, textual-plotext, Typer, Peewee, and Loguru (installed automatically)
+- **Permissions**: no root privileges required; exact sensor availability can vary by Mac model
 
 ## Architecture
 
@@ -388,6 +397,13 @@ CREATE TABLE power_readings (
 );
 ```
 
+## Data and Privacy 🔐
+
+- Power readings are stored locally in SQLite at `~/.powermonitor/powermonitor.db` by default.
+- `powermonitor` does not require a cloud account or background service.
+- Data leaves your machine only when you explicitly export it with `powermonitor export`.
+- Database cleanup is manual and explicit via `powermonitor cleanup`.
+
 ## Project Structure
 
 ```
@@ -421,30 +437,51 @@ powermonitor/
 
 ## Development
 
-### Code Quality
+### Setup
 
 ```bash
-# Type checking
-uv run ty check .
-
-# Linting
-uv run ruff check src/
-
-# Auto-formatting
-uv run ruff format src/
-
-# Run all checks
-uv run ty check . && uv run ruff check src/ && uv run ruff format src/
+uv sync
 ```
 
-### Testing
+### Quality Checks
 
 ```bash
-# Run tests (when available)
-uv run pytest
+make format   # Format with Ruff
+make lint     # Run Ruff checks
+make type     # Run ty type checking
+make test     # Run pytest with coverage
+make all      # Run format, lint, type check, and tests
+```
 
-# Manual testing
+### Manual Testing
+
+```bash
 uv run powermonitor
+```
+
+### Collector Debugging
+
+```bash
+# Test one data collection pass
+uv run python - <<'PY'
+from powermonitor.collector import default_collector
+
+print(default_collector().collect())
+PY
+
+# Show verbose collector selection and fallback details
+uv run python - <<'PY'
+from powermonitor.collector import default_collector
+
+collector = default_collector(verbose=True)
+print(collector.collect())
+PY
+```
+
+### Build
+
+```bash
+uv build --no-sources
 ```
 
 ## Power Monitor vs Built-in macOS Tools 🧰
@@ -481,11 +518,6 @@ in `~/.powermonitor/config.toml`.
 
 Yes. Use `powermonitor export data.csv` or `powermonitor export data.json` to export historical power readings for
 spreadsheets, notebooks, scripts, and benchmark reports.
-
-## Keywords
-
-macOS battery monitor, MacBook battery monitor, Mac power monitor, terminal battery monitor, CLI battery monitor,
-Textual TUI, IOKit, SMC sensors, ioreg, charger wattage, USB-C charging, battery health, SQLite power history.
 
 ## Recent Improvements
 
