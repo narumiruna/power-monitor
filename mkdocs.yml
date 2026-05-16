@@ -1,0 +1,81 @@
+site_name: powermonitor
+site_description: "macOS battery monitor, MacBook charging wattage checker, and real-time terminal power usage TUI."
+site_author: narumi
+site_url: https://narumiruna.github.io/power-monitor/
+repo_name: narumiruna/power-monitor
+repo_url: https://github.com/narumiruna/power-monitor
+edit_uri: edit/main/docs/
+strict: true
+use_directory_urls: true
+
+copyright: Copyright &copy; narumi
+
+theme:
+  name: material
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - scheme: default
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.action.edit
+    - content.code.copy
+    - search.highlight
+    - search.share
+    - search.suggest
+
+plugins:
+  - search:
+      lang: en
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - meta
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - User Guide:
+      - TUI Usage: usage.md
+      - CLI Commands: commands.md
+      - Configuration: configuration.md
+      - Data and Privacy: data-and-privacy.md
+      - FAQ: faq.md
+  - Internals:
+      - Architecture: architecture.md
+      - Development: development.md
+      - Plans:
+          - Configuration CLI plan: plans/2026-05-15_powermonitor-config-plan.md
+          - Adaptive TUI layout plan: plans/archived/2026-05-15_adaptive-tui-layout-plan.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/narumiruna/power-monitor
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/powermonitor/
