@@ -33,7 +33,7 @@ the TUI.
 
 ## Plan
 
-- [x] Capture the current quality baseline before implementation; verify with `make all` and record any pre-existing
+- [x] Capture the current quality baseline before implementation; verify with `just all` and record any pre-existing
   failures before changing code.
 - [x] Add a `config` Typer command group in `src/powermonitor/cli.py` that does not interfere with default TUI launch;
   verify with `uv run powermonitor --help` and existing CLI tests.
@@ -51,7 +51,7 @@ the TUI.
   `uv run powermonitor config --help`.
 - [x] Decide whether `powermonitor config edit` belongs in this release slice; if accepted, implement it with a mocked
   editor invocation test, otherwise leave it as a later candidate in this file.
-- [x] Run the final quality gate; verify with `make all` and `uv build --no-sources`.
+- [x] Run the final quality gate; verify with `just all` and `uv build --no-sources`.
 
 ## Later Candidates
 
@@ -89,4 +89,4 @@ the TUI.
 - [x] Runtime config loading and config validation share the same schema behavior, verified by tests that cover invalid
   values and unknown keys.
 - [x] README usage examples match command help, verified with `uv run powermonitor config --help`.
-- [x] Repository quality gates pass, verified with `make all` and `uv build --no-sources`.
+- [x] Repository quality gates pass, verified with `just all` and `uv build --no-sources`.

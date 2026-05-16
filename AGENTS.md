@@ -16,14 +16,14 @@ Keep new modules near the feature they support; add shared helpers only for real
 
 - `uv sync`: install locked dependencies.
 - `uv run powermonitor`: run the local CLI/TUI.
-- `make format`: format the project with Ruff.
-- `make lint`: run Ruff checks with autofix enabled.
-- `make type`: run `ty check .`.
-- `make test`: run pytest with coverage.
-- `make all`: run format, lint, type check, and tests.
+- `just format`: format the project with Ruff.
+- `just lint`: run Ruff checks with autofix enabled.
+- `just type`: run `ty check .`.
+- `just test`: run pytest with coverage.
+- `just all`: run format, lint, type check, and tests.
 - `uv build --no-sources`: build release artifacts without local source overrides.
 
-Use `uv run ...` unless a `Makefile` target already wraps the command.
+Use `uv run ...` unless a `justfile` recipe already wraps the command.
 
 ## Coding Style & Naming Conventions
 
@@ -35,7 +35,7 @@ Use `snake_case` for functions, methods, variables, and modules; use `PascalCase
 
 Tests use pytest with coverage configured in `pyproject.toml`. Name files `test_*.py`, classes `Test*`, and functions `test_*`. Put deterministic sample data in `tests/fixtures/`; avoid depending on live macOS power state when a fixture or mock can cover the behavior.
 
-Run `make test` for behavior changes and `make all` for broader changes.
+Run `just test` for behavior changes and `just all` for broader changes.
 
 ## Commit & Pull Request Guidelines
 

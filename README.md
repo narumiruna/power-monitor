@@ -280,13 +280,16 @@ Yes. Use `powermonitor export data.csv` or `powermonitor export data.json`.
 
 ## Development
 
+Install `just` if needed, for example with `brew install just`. Run `just` or `just --list` to see available recipes.
+
 ```bash
 uv sync
-make format
-make lint
-make type
-make test
-make all
+just --list
+just format
+just lint
+just type
+just test
+just all
 ```
 
 Build release artifacts:
