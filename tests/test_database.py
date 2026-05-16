@@ -299,9 +299,10 @@ def test_cleanup_old_data_empty(database):
 
 def test_get_battery_health_trend(database):
     """Test get_battery_health_trend method."""
-    base_time = datetime.now(UTC)
+    base_time = datetime.now(UTC).replace(hour=12, minute=0, second=0, microsecond=0)
 
-    # Create readings over 7 days with slight capacity degradation
+    # Create readings over 7 days with slight capacity degradation.
+    # Anchor at noon UTC so subtracting a few hours does not cross calendar-day boundaries.
     for day in range(7):
         for i in range(5):  # 5 readings per day
             reading = PowerReading(
@@ -347,9 +348,10 @@ def test_get_battery_health_trend_no_data(database):
 
 def test_get_battery_health_trend_partial_days(database):
     """Test get_battery_health_trend with only some days having data."""
-    base_time = datetime.now(UTC)
+    base_time = datetime.now(UTC).replace(hour=12, minute=0, second=0, microsecond=0)
 
-    # Create readings only for 3 specific days
+    # Create readings only for 3 specific days.
+    # Anchor at noon UTC so subtracting a few hours does not cross calendar-day boundaries.
     for day in [0, 2, 5]:
         for i in range(3):
             reading = PowerReading(
