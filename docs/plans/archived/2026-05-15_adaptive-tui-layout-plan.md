@@ -88,7 +88,7 @@ terminal `Size` into a layout mode, for example:
   `test_app_uses_compact_stacked_layout_for_short_narrow_terminal`.
 - [x] Update README TUI documentation to describe the adaptive layout behavior without documenting internal thresholds
   as a user contract; verified by reviewing `README.md` TUI usage and architecture text.
-- [x] Run the final quality gate for this slice; verified by `make all` with 156 passed and 2 skipped.
+- [x] Run the final quality gate for this slice; verified by `just all` with 156 passed and 2 skipped.
 
 ## Risks
 
@@ -120,5 +120,5 @@ terminal `Size` into a layout mode, for example:
   `test_app_resize_changes_layout_without_replacing_widgets` and existing TUI update tests.
 - [x] The README describes adaptive TUI behavior accurately, verified by reviewing the updated TUI section against the
   implemented mode rules.
-- [x] The implementation passes repository quality checks, verified by `make lint`, `make type`, `make test`, and
-  `make all`.
+- [x] The implementation passes repository quality checks, verified by `just lint`, `just type`, `just test`, and
+  `just all`.

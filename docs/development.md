@@ -6,7 +6,9 @@ description: Development guide for powermonitor, including uv setup, Ruff, ty, p
 
 # Development
 
-This project uses Python 3.13+, `uv`, Ruff, ty, pytest, and MkDocs.
+This project uses Python 3.13+, `uv`, `just`, Ruff, ty, pytest, and MkDocs.
+
+Install `just` if your system does not already provide it. On macOS, use `brew install just`. Run `just` or `just --list` to see available recipes.
 
 ## Set up the repository
 
@@ -27,14 +29,15 @@ The TUI only runs on macOS.
 
 ## Quality checks
 
-Use the repository Makefile:
+Use the repository `justfile`:
 
 ```bash
-make format   # Ruff formatter
-make lint     # Ruff checks with autofix
-make type     # ty type checker
-make test     # pytest with coverage
-make all      # format, lint, type, test
+just --list   # Show available recipes
+just format   # Ruff formatter
+just lint     # Ruff checks with autofix
+just type     # ty type checker
+just test     # pytest with coverage
+just all      # format, lint, type, test
 ```
 
 ## Documentation site
