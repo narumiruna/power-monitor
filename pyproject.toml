@@ -8,15 +8,22 @@ authors = [{ name = "narumi", email = "toucans-cutouts0f@icloud.com" }]
 keywords = [
   "battery",
   "battery-health",
+  "battery-monitor",
+  "charging",
   "cli",
   "iokit",
   "ioreg",
   "macbook",
+  "macbook-battery",
   "macos",
+  "macos-battery",
   "power-monitor",
+  "power-usage",
   "python",
+  "sqlite",
   "textual",
   "tui",
+  "usb-c",
 ]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -41,6 +48,7 @@ dependencies = [
 ]
 
 [project.urls]
+Documentation = "https://narumiruna.github.io/power-monitor/"
 Issues = "https://github.com/narumiruna/power-monitor/issues"
 Repository = "https://github.com/narumiruna/power-monitor"
 
@@ -54,6 +62,10 @@ dev = [
   "pytest-cov>=7.0.0",
   "ruff>=0.14.10",
   "ty>=0.0.7",
+]
+docs = [
+  "mkdocs>=1.6.1",
+  "mkdocs-material>=9.7.6",
 ]
 
 [build-system]
